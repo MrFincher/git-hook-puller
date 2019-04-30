@@ -8,7 +8,7 @@ create a config.txt file which contains
 - name, local path to cloned repo to update (space seperated) in the following lines
 
 ## Example:
-8080
-thisIsTheSecret
-repo1 /repos/repo1
-repo2 /repos/repo2
+.8080
+.thisIsTheSecret
+.repo1 /repos/repo1
+.repo2 /repos/repo2
