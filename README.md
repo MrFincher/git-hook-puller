@@ -7,8 +7,11 @@ create a config.txt file in the same folder as the executable which contains:
 - a *secret key* for hashing in the second line
 - in the following lines: *repository name* and *local path to cloned repo* (space seperated) 
 
-## Example:
+#### Example:
 8080  
 thisIsTheSecret  
 repo1 /repos/repo1  
 repo2 /repos/repo2  
+
+# Planned Features
+- https support
