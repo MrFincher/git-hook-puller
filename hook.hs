@@ -51,6 +51,7 @@ hookPosHandler = do
   printLogSeperator
   checkHash
   json <- jsonData :: Handler Object
+  liftIO $ print $ json ^? ix "action"
   path <- getRepoPath $ json ^?! repoNameLens
   when (json ! "action" == "published") $ execGitPull path
 
