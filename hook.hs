@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeSynonymInstances,FlexibleInstances #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
 
 import GHC.Generics
 import Prelude hiding (lookup)
@@ -17,12 +17,15 @@ import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Char
 import Data.Text as T (Text)
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Data.Text.Lazy.Encoding
 import qualified Data.Text.Lazy as LT
 import qualified Data.Text.Lazy.IO as LT
+import Data.Foldable
 import Data.Semigroup
 import Data.Maybe
 import Data.Time.Clock
+import qualified Data.Yaml as Y
 import Network.HTTP.Types.Status
 import System.Process
 import System.IO
@@ -38,7 +41,8 @@ data Config = Config {port :: Int
 instance FromJSON Config
 
 data RepoEntry = RepoEntry {event :: Text -- only allow valid ones?
-                           ,path :: FilePath}
+                           ,path :: FilePath
+                           ,setupCmd :: Maybe Text}
                            deriving (Generic, Show)
 
 instance FromJSON RepoEntry
@@ -46,16 +50,12 @@ instance FromJSON RepoEntry
 type Handler = ActionT LT.Text (ReaderT Config IO)
 
 configFile :: FilePath
-configFile = "config.json"
-
-readConfig :: IO Config
-readConfig = either error return =<< eitherDecodeFileStrict configFile
-  where eitherDecodeFileStrict = fmap eitherDecodeStrict . BS.readFile
+configFile = "config.yaml"
 
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
-  cfg <- readConfig
+  cfg <- Y.decodeFileThrow configFile
   -- TODO SSL
   scottyT (port cfg) (`runReaderT` cfg) $ post "" hookPosHandler
 
@@ -65,10 +65,10 @@ hookPosHandler = do
   checkHash
   json <- jsonData :: Handler Object
   catchTest json
-  RepoEntry event path <- getConfigEntry json
+  RepoEntry {..} <- getConfigEntry json
   checkRelevance event json
-  execGitPull path
-  -- TODO exec setup command?
+  execCmd path "git pull"
+  traverse_ (execCmd path) setupCmd
 
 catchTest :: Object -> Handler ()
 catchTest json = when ("zen" `member` json) $ text "detected test" >> next
@@ -100,11 +100,10 @@ checkHash = do
   when (hash /= "sha1=" <> shouldBe) $
     status forbidden403 >> putStrLnIO "invalid hash" >> next
 
-
-execGitPull :: FilePath -> Handler ()
-execGitPull path = liftIO $ do
-  let cp = (shell "git pull") {cwd = Just path}
-  putStrLn "executing git pull..."
+execCmd :: FilePath -> Text -> Handler ()
+execCmd path cmd = liftIO $ do
+  T.putStrLn $ "executing: \n " <> cmd 
+  let cp = (shell $ T.unpack cmd) {cwd = Just path}
   (exitCode,stout,sterr) <- readCreateProcessWithExitCode cp ""
   print exitCode >> putStrLn stout >> putStrLn sterr
     
@@ -113,5 +112,5 @@ badReq msg = do
   liftM2 (>>) (liftIO . LT.putStrLn) text msg
   status badRequest400 >> next
 
-putStrLnIO :: String -> Handler ()
-putStrLnIO = liftIO . putStrLn
+putStrLnIO :: Text -> Handler ()
+putStrLnIO = liftIO . T.putStrLn
