@@ -16,6 +16,7 @@ import Data.Text as T (Text)
 import qualified Data.Text as T
 import Data.Text.Lazy.Encoding
 import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.IO as LT
 import Data.Semigroup
 import Data.Maybe
 import Data.Time.Clock
@@ -51,16 +52,19 @@ hookPosHandler = do
   printLogSeperator
   checkHash
   json <- jsonData :: Handler Object
-  liftIO $ print $ json ^? ix "action"
+  action <- getAction json
   path <- getRepoPath $ json ^?! repoNameLens
-  when (json ! "action" == "published") $ execGitPull path
+  when (action == "published") $ execGitPull path
 
 getRepoPath :: Text -> Handler FilePath
 getRepoPath repoName = lift (asks $ lookup repoName . repos) >>= \case
     Just path -> return path
-    Nothing -> do liftIO (putStrLn "unknown repo") >> text "unknown repo"
-                  status badRequest400 >> next
+    Nothing -> badReq "unknown repo"
 
+getAction :: Object -> Handler Text
+getAction json = case json ^? ix "action" . _String of
+  Just action -> return action
+  Nothing -> badReq "no action specified in the request"
 
 printLogSeperator :: Handler ()
 printLogSeperator = liftIO $ do
@@ -83,6 +87,11 @@ execGitPull path = liftIO $ do
   (exitCode,stout,sterr) <- readCreateProcessWithExitCode cp ""
   print exitCode >> putStrLn stout >> putStrLn sterr
     
+badReq :: LT.Text -> Handler a
+badReq msg = do
+  liftM2 (>>) (liftIO . LT.putStrLn) text msg
+  status badRequest400 >> next
+
 
 repoNameLens :: Traversal' Object Text
 repoNameLens = at "repository" . _Just . _Object
