@@ -112,4 +112,5 @@ badReq msg = do
   liftM2 (>>) (liftIO . LT.putStrLn) text msg
   status badRequest400 >> next
 
+putStrLnIO :: String -> Handler ()
 putStrLnIO = liftIO . putStrLn
