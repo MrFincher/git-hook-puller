@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeSynonymInstances,FlexibleInstances #-}
+{-# LANGUAGE DeriveGeneric #-}
 
+import GHC.Generics
 import Prelude hiding (lookup)
 import Control.Concurrent 
 import Control.Lens
@@ -29,23 +31,28 @@ import Debug.Trace
 
 data Config = Config {port :: Int
                      ,secret :: String
-                     ,repos :: HashMap Text FilePath}
+                     ,repos :: HashMap Text RepoEntry}
+                     deriving (Generic, Show)
+
+instance FromJSON Config
+
+data RepoEntry = RepoEntry {event :: Text -- only allow valid ones?
+                           ,path :: FilePath}
+                           deriving (Generic, Show)
+
+instance FromJSON RepoEntry
 
 type Handler = ActionT LT.Text (ReaderT Config IO)
 
+
 readConfig :: IO Config
-readConfig = do
-  (port:secret:ls) <- filter notComment . lines <$> readFile "config.txt"
-  return $ Config (read port) secret $ foldMap (aux . words) ls
-  where aux [name, path] = singleton (T.pack name) path
-        notComment = (/='#') . head
+readConfig = either error return =<< eitherDecodeFileStrict "config.txt"
 
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   cfg <- readConfig
   -- TODO SSL
-  putStrLn "starting scotty..."
   scottyT (port cfg) (`runReaderT` cfg) $ post "" hookPosHandler
 
 hookPosHandler :: Handler ()
@@ -53,23 +60,28 @@ hookPosHandler = do
   printLogSeperator
   checkHash
   json <- jsonData :: Handler Object
-  liftIO $ print json
-  action <- getAction json
-  path <- getRepoPath $ json ^?! repoNameLens
-  when (action == "published") $ do
-    liftIO $ putStrLn "handling published release..."
-    execGitPull path
+  catchTest json
+  RepoEntry event path <- getConfigEntry json
+  checkRelevance event json
+  execGitPull path
+  -- TODO exec setup command?
 
-getRepoPath :: Text -> Handler FilePath
-getRepoPath repoName = lift (asks $ lookup repoName . repos) >>= \case
-    Just path -> return path
-    Nothing -> badReq "unknown repo"
+catchTest :: Object -> Handler ()
+catchTest json = when ("zen" `member` json) $ text "detected test" >> next
 
-getAction :: Object -> Handler Text
-getAction json = case json ^? ix "action" . _String of
-  Just action -> return action
-  Nothing -> badReq "no action specified in the request"
-    -- | json ^?! ix "" -> badReq "no action specified in the request"
+checkRelevance :: Text -> Object -> Handler ()
+checkRelevance event json = do
+  let relevant = event == "release" && json ^?! ix "action" == "pubished"
+               || event == "push" && "pusher" `member` json
+  unless relevant $ putStrLnIO "not relevant" >> next
+
+getConfigEntry :: Object -> Handler RepoEntry
+getConfigEntry json = do
+  let repoJson = json ! "repository" ^?! _Object
+  let repoName = repoJson ^?! at "name" . _Just . _String
+  maybeEntry <- lift $ asks $ lookup repoName . repos
+  maybe (badReq "unknown repo") return maybeEntry 
+
 
 printLogSeperator :: Handler ()
 printLogSeperator = liftIO $ do
@@ -83,13 +95,13 @@ checkHash = do
   secret <- lift $ asks $ BS.pack . filter (not . isSpace) . secret
   shouldBe <- LT.pack . showDigest . hmacSha1 secret <$> body
   when (hash /= "sha1=" <> shouldBe) $
-    status forbidden403 >> liftIO (putStrLn "invalid hash") >> next
+    status forbidden403 >> putStrLnIO "invalid hash" >> next
 
 
 execGitPull :: FilePath -> Handler ()
 execGitPull path = liftIO $ do
   let cp = (shell "git pull") {cwd = Just path}
-  liftIO $ putStrLn "executing git pull..."
+  putStrLn "executing git pull..."
   (exitCode,stout,sterr) <- readCreateProcessWithExitCode cp ""
   print exitCode >> putStrLn stout >> putStrLn sterr
     
@@ -98,7 +110,4 @@ badReq msg = do
   liftM2 (>>) (liftIO . LT.putStrLn) text msg
   status badRequest400 >> next
 
-
-repoNameLens :: Traversal' Object Text
-repoNameLens = at "repository" . _Just . _Object
-             . at "name" . _Just . _String
+putStrLnIO = liftIO . putStrLn
