@@ -52,9 +52,12 @@ hookPosHandler = do
   printLogSeperator
   checkHash
   json <- jsonData :: Handler Object
+  liftIO $ print json
   action <- getAction json
   path <- getRepoPath $ json ^?! repoNameLens
-  when (action == "published") $ execGitPull path
+  when (action == "published") $ do
+    liftIO $ putStrLn "handling published release..."
+    execGitPull path
 
 getRepoPath :: Text -> Handler FilePath
 getRepoPath repoName = lift (asks $ lookup repoName . repos) >>= \case
@@ -64,7 +67,8 @@ getRepoPath repoName = lift (asks $ lookup repoName . repos) >>= \case
 getAction :: Object -> Handler Text
 getAction json = case json ^? ix "action" . _String of
   Just action -> return action
-  Nothing -> badReq "no action specified in the request"
+  Nothing
+    | json ^?! ix ""-> badReq "no action specified in the request"
 
 printLogSeperator :: Handler ()
 printLogSeperator = liftIO $ do
@@ -84,6 +88,7 @@ checkHash = do
 execGitPull :: FilePath -> Handler ()
 execGitPull path = liftIO $ do
   let cp = (shell "git pull") {cwd = Just path}
+  liftIO $ putStrLn "executing git pull..."
   (exitCode,stout,sterr) <- readCreateProcessWithExitCode cp ""
   print exitCode >> putStrLn stout >> putStrLn sterr
     
