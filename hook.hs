@@ -75,7 +75,7 @@ catchTest json = when ("zen" `member` json) $ text "detected test" >> next
 
 checkRelevance :: Text -> Object -> Handler ()
 checkRelevance event json = do
-  let relevant = event == "release" && json ^?! ix "action" == "pubished"
+  let relevant = event == "release" && json ^?! ix "action" == "published"
                || event == "push" && "pusher" `member` json
   unless relevant $ putStrLnIO "not relevant" >> next
 
