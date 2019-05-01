@@ -67,8 +67,8 @@ getRepoPath repoName = lift (asks $ lookup repoName . repos) >>= \case
 getAction :: Object -> Handler Text
 getAction json = case json ^? ix "action" . _String of
   Just action -> return action
-  Nothing
-    | json ^?! ix ""-> badReq "no action specified in the request"
+  Nothing -> badReq "no action specified in the request"
+    -- | json ^?! ix "" -> badReq "no action specified in the request"
 
 printLogSeperator :: Handler ()
 printLogSeperator = liftIO $ do
