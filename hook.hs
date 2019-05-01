@@ -52,7 +52,6 @@ type Handler = ActionT LT.Text (ReaderT Config IO)
 configFile :: FilePath
 configFile = "config.yaml"
 
-
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
