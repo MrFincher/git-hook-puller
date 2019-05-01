@@ -12,7 +12,8 @@ import Data.Digest.Pure.SHA
 import Data.HashMap.Strict hiding (map,filter)
 import Data.Aeson
 import Data.Aeson.Lens
-import qualified Data.ByteString.Lazy.Char8 as BS
+import qualified Data.ByteString as BS (readFile)
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Char
 import Data.Text as T (Text)
 import qualified Data.Text as T
@@ -47,6 +48,7 @@ type Handler = ActionT LT.Text (ReaderT Config IO)
 
 readConfig :: IO Config
 readConfig = either error return =<< eitherDecodeFileStrict "config.txt"
+  where eitherDecodeFileStrict = fmap eitherDecodeStrict . BS.readFile
 
 main :: IO ()
 main = do
@@ -92,7 +94,7 @@ printLogSeperator = liftIO $ do
 checkHash :: Handler ()
 checkHash = do
   hash <- fromJust <$> header "X-Hub-Signature"
-  secret <- lift $ asks $ BS.pack . filter (not . isSpace) . secret
+  secret <- lift $ asks $ LBS.pack . filter (not . isSpace) . secret
   shouldBe <- LT.pack . showDigest . hmacSha1 secret <$> body
   when (hash /= "sha1=" <> shouldBe) $
     status forbidden403 >> putStrLnIO "invalid hash" >> next
