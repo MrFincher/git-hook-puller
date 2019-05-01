@@ -55,7 +55,7 @@ configFile = "config.yaml"
 main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
-  cfg <- Y.decodeFileThrow configFile
+  cfg <- either err return $ Y.decodeFileEither configFile
   -- TODO SSL
   scottyT (port cfg) (`runReaderT` cfg) $ post "" hookPosHandler
 
