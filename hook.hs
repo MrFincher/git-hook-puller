@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase #-}
 
 import Prelude hiding (lookup)
 import Control.Concurrent 
@@ -50,10 +51,15 @@ hookPosHandler = do
   printLogSeperator
   checkHash
   json <- jsonData :: Handler Object
-  let repoName = json ^?! repoNameLens
-  repos <- lift $ asks repos
-  when (repoName `member` repos && json ! "action" == "published") $
-    execGitPull $ lookup repoName repos
+  path <- getRepoPath $ json ^?! repoNameLens
+  when (json ! "action" == "published") $ execGitPull path
+
+getRepoPath :: Text -> Handler FilePath
+getRepoPath repoName = lift (asks $ lookup repoName . repos) >>= \case
+    Just path -> return path
+    Nothing -> do liftIO (putStrLn "unknown repo") >> text "unknown repo"
+                  status badRequest400 >> next
+
 
 printLogSeperator :: Handler ()
 printLogSeperator = liftIO $ do
@@ -70,9 +76,9 @@ checkHash = do
     status forbidden403 >> liftIO (putStrLn "invalid hash") >> next
 
 
-execGitPull :: Maybe FilePath -> Handler ()
+execGitPull :: FilePath -> Handler ()
 execGitPull path = liftIO $ do
-  let cp = (shell "git pull") {cwd = path}
+  let cp = (shell "git pull") {cwd = Just path}
   (exitCode,stout,sterr) <- readCreateProcessWithExitCode cp ""
   print exitCode >> putStrLn stout >> putStrLn sterr
     
