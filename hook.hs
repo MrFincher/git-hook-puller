@@ -35,9 +35,10 @@ type Handler = ActionT LT.Text (ReaderT Config IO)
 
 readConfig :: IO Config
 readConfig = do
-  (port:secret:rest) <- lines <$> readFile "config.txt"
-  return $ Config (read port) secret $ foldMap (aux . words) rest
+  (port:secret:ls) <- filter notComment . lines <$> readFile "config.txt"
+  return $ Config (read port) secret $ foldMap (aux . words) ls
   where aux [name, path] = singleton (T.pack name) path
+        notComment = (/='#') . head
 
 main :: IO ()
 main = do
