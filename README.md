@@ -3,11 +3,14 @@ A service which is able to receive webhook request regarding releases from githu
 
 # Usage
 ### setup server
-create a `config.yaml` file in the same folder as the executable which contains:
-- the *port* to listen for webhook requests on in the first line as `port`
+create a `config.yaml` file in the same folder as the executable and specify:
+- the *port* to listen for webhook requests on as `port`
 - a *secret key* for hashing in the second line as `secret`
-- in the following lines: `repos`, followed by the *repository name* along with the *local path to cloned repo* as `path` and the *event type* (push or release) as `event`.
-- optionally, the command to be executed after updating the repository as `setupCmd`.
+- the `repos` for each repository:
+  - the *repository name*
+  - the *local path to cloned repo* as `path`
+  - and the *event type* (push or release) as `event`.
+  - optionally, the command to be executed after updating the repository as `setupCmd`
 
 ##### Example:
 ```
@@ -24,11 +27,11 @@ repos:
 ```
 
 ### setup github webhook
-Create a webhook for releases in the settings of the repository you want the be automatically updated.
-Provide the URL to your server running the git-hook-puller (including the port) and the choosen secret. Select "application/json" as content type.
+Create a webhook in the settings of the repository you want the be automatically updated:
+- Provide the URL to your server running the git-hook-puller (including the port)
+- Enter the choosen secret
+- Select "application/json" as content type
+- Choose either *release* or *push* events. This needs to be the same as the event type specified in the config file.
 
 # Planned Features
 - https support
-- specify setup command to be run after pull (e.g. compiling)
-
-
