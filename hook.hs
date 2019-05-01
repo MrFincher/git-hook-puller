@@ -45,9 +45,11 @@ instance FromJSON RepoEntry
 
 type Handler = ActionT LT.Text (ReaderT Config IO)
 
+configFile :: FilePath
+configFile = "config.json"
 
 readConfig :: IO Config
-readConfig = either error return =<< eitherDecodeFileStrict "config.txt"
+readConfig = either error return =<< eitherDecodeFileStrict configFile
   where eitherDecodeFileStrict = fmap eitherDecodeStrict . BS.readFile
 
 main :: IO ()
@@ -83,7 +85,6 @@ getConfigEntry json = do
   let repoName = repoJson ^?! at "name" . _Just . _String
   maybeEntry <- lift $ asks $ lookup repoName . repos
   maybe (badReq "unknown repo") return maybeEntry 
-
 
 printLogSeperator :: Handler ()
 printLogSeperator = liftIO $ do
