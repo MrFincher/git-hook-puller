@@ -1,5 +1,5 @@
 # git-hook-puller
-A service which is able to receive webhook request regarding releases from github and "git pull" the latest version to the local directory where the repository was cloned
+A service which is able to receive webhook request regarding events like releases or pushs from github and "git pull" the latest version to the local directory where the repository was cloned
 
 # Usage
 ### setup server
