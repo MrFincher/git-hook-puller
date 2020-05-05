@@ -56,7 +56,6 @@ main :: IO ()
 main = do
   hSetBuffering stdout LineBuffering
   cfg <- either (error . show) return =<< Y.decodeFileEither configFile
-  -- TODO SSL
   scottyT (port cfg) (`runReaderT` cfg) $ post "" hookPosHandler >> post "" (text "")
 
 hookPosHandler :: Handler ()
